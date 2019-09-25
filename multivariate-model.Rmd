@@ -83,6 +83,14 @@ dd <- dd %>%
 dd
 ```
 
+# Desc
+
+```{r}
+dd %>%
+    select(aff_enga, beh_enga, cog_enga) %>% 
+    apaTables::apa.cor.table(filename = "cor-table.doc")
+```
+
 # Model
 
 ```{r, eval = FALSE}
@@ -165,9 +173,7 @@ hypothesis(mood,
              "sd_beep_ID__cogenga_Intercept>sd_program_ID__cogenga_Intercept"),
            class = NULL) %>% 
     pluck(1) %>% 
-    mutate(Estimate = str_c(round(abs(Estimate), 3), " (", round(Est.Error,3), "), ", re_p(Post.Prob))) %>% 
-    select(Estimate) %>% 
-    clipr::write_clip()
+    mutate(Estimate = str_c(round(abs(Estimate), 3), " (", round(Est.Error,3), "), ", re_p(Post.Prob))) 
 
 ## RQ2
 hypothesis(mood, 
@@ -232,6 +238,26 @@ hypothesis(mood,
            class = NULL)
 ```
 
+```{r}
+tibble::tribble(
+        ~Outcome, ~Hypothesis, ~`Diff`,
+     "Affective",           "Sit. - Ind.",      "0.257 (0.017), p < .001",
+     "Affective",          "Sit. - Prog.",      "0.348 (0.034), p < .001",
+     "Affective",          "Sit. - Prog.",     "0.091 (0.032), p = 0.004",
+    "Behavioral",           "Sit. - Ind.",       "0.31 (0.016), p < .001",
+    "Behavioral",          "Sit. - Prog.",      "0.397 (0.029), p < .001",
+    "Behavioral",          "Sit. - Prog.",     "0.088 (0.028), p = 0.001",
+     "Cognitive",           "Sit. - Ind.",      "0.494 (0.018), p < .001",
+     "Cognitive",          "Sit. - Prog.",      "0.451 (0.037), p < .001",
+     "Cognitive",          "Sit. - Prog.",         "0.043 (0.033), 0.089"
+    ) %>% 
+    mutate(hypothesis = str_c(Outcome, ": ", Hypothesis)) %>% 
+    select(hypothesis, Diff) %>%
+    mutate()
+    spread(hyp)
+
+```
+
 # Plot 
 # AFF 
 
@@ -251,6 +277,7 @@ tot_var <- xx %>%
     group_by(out) %>% 
     summarize(total_var = sum(Variance))
 
+# aff
 resid <- mood %>% 
     spread_draws(sigma_affenga) %>% 
     mutate(est = sigma_affenga ^ 2) %>% 
@@ -285,10 +312,11 @@ dda <- bind_rows(beeps, peeps, progs, resid)
 gma <- dda %>% 
     group_by(var) %>% 
     summarize(var_mean = mean(est),
-              se = sd(est),
               lower_95_ci = quantile(est, c(.05, .95))[1],
               upper_95_ci = quantile(est, c(.05, .95))[2],
-              ICC = mean(ICC))
+              ICC_mean = mean(ICC),
+              lower_95_ci_icc = quantile(ICC, c(.05, .95))[1],
+              upper_95_ci_icc = quantile(ICC, c(.05, .95))[2])
 # BEH 
 resid <- mood %>% 
     spread_draws(sigma_behenga) %>% 
@@ -324,10 +352,11 @@ ddb <- bind_rows(beeps, peeps, progs, resid)
 gmb <- ddb %>% 
     group_by(var) %>% 
     summarize(var_mean = mean(est),
-              se = sd(est),
               lower_95_ci = quantile(est, c(.05, .95))[1],
               upper_95_ci = quantile(est, c(.05, .95))[2],
-              ICC = mean(ICC))
+              ICC_mean = mean(ICC),
+              lower_95_ci_icc = quantile(ICC, c(.05, .95))[1],
+              upper_95_ci_icc = quantile(ICC, c(.05, .95))[2])
 # COG
 resid <- mood %>% 
     spread_draws(sigma_cogenga) %>% 
@@ -363,10 +392,11 @@ ddc <- bind_rows(beeps, peeps, progs, resid)
 gmc <- ddc %>% 
     group_by(var) %>% 
     summarize(var_mean = mean(est),
-              se = sd(est),
               lower_95_ci = quantile(est, c(.05, .95))[1],
               upper_95_ci = quantile(est, c(.05, .95))[2],
-              ICC = mean(ICC))
+              ICC_mean = mean(ICC),
+              lower_95_ci_icc = quantile(ICC, c(.05, .95))[1],
+              upper_95_ci_icc = quantile(ICC, c(.05, .95))[2])
 
 dda <- dda %>% mutate(out = "affective")
 ddb <- ddb %>% mutate(out = "behavioral")
@@ -377,6 +407,10 @@ dddd <- dda %>%
     bind_rows(ddc) %>% 
     select(-.draw)
 
+dddd <- dddd %>% 
+    mutate(outcome = tools::toTitleCase(out)) %>% 
+    filter(var!="residual")
+
 gma <- gma %>% mutate(out = "affective")
 gmb <- gmb %>% mutate(out = "behavioral")
 gmc <- gmc %>% mutate(out = "cognitive")
@@ -385,19 +419,14 @@ gmd <- gma %>%
     bind_rows(gmb) %>% 
     bind_rows(gmc)
 
-dddd <- dddd %>% 
-    mutate(outcome = tools::toTitleCase(out)) %>% 
-    filter(var!="residual")
-
 gmd <- gmd %>% mutate(outcome = tools::toTitleCase(out),
-                      var = tools::toTitleCase(var)) %>% 
-    filter(var!="Residual")
+                      var = tools::toTitleCase(var))
 
 gmd %>% 
     mutate_if(is.numeric, round, 3) %>% 
-    mutate(var_mean_se = str_c(var_mean, " (", se, ")"), 
-           ci = str_c("[", lower_95_ci, ", ", upper_95_ci, "]")) %>% 
-    select(var, outcome, var_mean_se, ci, ICC) %>% 
+    mutate(ci = str_c(var_mean, " [", lower_95_ci, ", ", upper_95_ci, "]"),
+           ci_ICC = str_c(ICC_mean, " [", lower_95_ci_icc, ", ", upper_95_ci_icc, "]")) %>% 
+    select(outcome,var, ci, ci_ICC) %>% 
     clipr::write_clip()
 
 ll <- gmd %>% group_by(outcome) %>% summarize(sum_ICC = sum(ICC))
@@ -436,3 +465,229 @@ p +
 
 ggsave("2019-09-25-esm-iccs.png", width = 9, height = 9)
 ```
+
+# Beep
+
+```{r}
+beep_aff_beh <- mood %>% 
+    spread_draws(cor_beep_ID__affenga_Intercept__behenga_Intercept) %>% 
+    mutate(est = cor_beep_ID__affenga_Intercept__behenga_Intercept ^ 2) %>% 
+    mutate(var = "beep_aff_beh") %>% 
+    summarize(var = "beep_aff_beh",
+              est = mean(est),
+              lower_95_ci = quantile(cor_beep_ID__affenga_Intercept__behenga_Intercept, c(.05, .95))[1],
+              upper_95_ci = quantile(cor_beep_ID__affenga_Intercept__behenga_Intercept, c(.05, .95))[2])
+
+beep_aff_cog <- mood %>% 
+    spread_draws(cor_beep_ID__affenga_Intercept__cogenga_Intercept) %>% 
+    mutate(est = cor_beep_ID__affenga_Intercept__cogenga_Intercept ^ 2) %>% 
+    mutate(var = "beep_aff_cog") %>% 
+    summarize(var = "beep_aff_cog",
+              est = mean(est),
+              lower_95_ci = quantile(cor_beep_ID__affenga_Intercept__cogenga_Intercept, c(.05, .95))[1],
+              upper_95_ci = quantile(cor_beep_ID__affenga_Intercept__cogenga_Intercept, c(.05, .95))[2])
+
+beep_beh_cog <- mood %>% 
+    spread_draws(cor_beep_ID__behenga_Intercept__cogenga_Intercept) %>% 
+    mutate(est = cor_beep_ID__behenga_Intercept__cogenga_Intercept ^ 2) %>% 
+    mutate(var = "beep_beh_cog") %>% 
+    summarize(var = "beep_beh_cog",
+              est = mean(est),
+              lower_95_ci = quantile(cor_beep_ID__behenga_Intercept__cogenga_Intercept, c(.05, .95))[1],
+              upper_95_ci = quantile(cor_beep_ID__behenga_Intercept__cogenga_Intercept, c(.05, .95))[2])
+```
+
+# Participant
+
+```{r}
+participant_aff_beh <- mood %>% 
+    spread_draws(cor_participant_ID__affenga_Intercept__behenga_Intercept) %>% 
+    mutate(est = cor_participant_ID__affenga_Intercept__behenga_Intercept ^ 2) %>% 
+    mutate(var = "participant_aff_beh") %>% 
+    summarize(var = "participant_aff_beh",
+              est = mean(est),
+              lower_95_ci = quantile(cor_participant_ID__affenga_Intercept__behenga_Intercept, c(.05, .95))[1],
+              upper_95_ci = quantile(cor_participant_ID__affenga_Intercept__behenga_Intercept, c(.05, .95))[2])
+
+participant_aff_cog <- mood %>% 
+    spread_draws(cor_participant_ID__affenga_Intercept__cogenga_Intercept) %>% 
+    mutate(est = cor_participant_ID__affenga_Intercept__cogenga_Intercept ^ 2) %>% 
+    mutate(var = "participant_aff_cog") %>% 
+    summarize(var = "participant_aff_cog",
+              est = mean(est),
+              lower_95_ci = quantile(cor_participant_ID__affenga_Intercept__cogenga_Intercept, c(.05, .95))[1],
+              upper_95_ci = quantile(cor_participant_ID__affenga_Intercept__cogenga_Intercept, c(.05, .95))[2])
+
+participant_beh_cog <- mood %>% 
+    spread_draws(cor_participant_ID__behenga_Intercept__cogenga_Intercept) %>% 
+    mutate(est = cor_participant_ID__behenga_Intercept__cogenga_Intercept ^ 2) %>% 
+    mutate(var = "participant_beh_cog") %>% 
+    summarize(var = "participant_beh_cog",
+              est = mean(est),
+              lower_95_ci = quantile(cor_participant_ID__behenga_Intercept__cogenga_Intercept, c(.05, .95))[1],
+              upper_95_ci = quantile(cor_participant_ID__behenga_Intercept__cogenga_Intercept, c(.05, .95))[2])
+```
+
+
+# Program
+
+```{r}
+program_aff_beh <- mood %>% 
+    spread_draws(cor_program_ID__affenga_Intercept__behenga_Intercept) %>% 
+    mutate(est = cor_program_ID__affenga_Intercept__behenga_Intercept ^ 2) %>% 
+    mutate(var = "program_aff_beh") %>% 
+    summarize(var = "program_aff_beh",
+              est = mean(est),
+              lower_95_ci = quantile(cor_program_ID__affenga_Intercept__behenga_Intercept, c(.05, .95))[1],
+              upper_95_ci = quantile(cor_program_ID__affenga_Intercept__behenga_Intercept, c(.05, .95))[2])
+
+program_aff_cog <- mood %>% 
+    spread_draws(cor_program_ID__affenga_Intercept__cogenga_Intercept) %>% 
+    mutate(est = cor_program_ID__affenga_Intercept__cogenga_Intercept ^ 2) %>% 
+    mutate(var = "program_aff_cog") %>% 
+    summarize(var = "program_aff_cog",
+              est = mean(est),
+              lower_95_ci = quantile(cor_program_ID__affenga_Intercept__cogenga_Intercept, c(.05, .95))[1],
+              upper_95_ci = quantile(cor_program_ID__affenga_Intercept__cogenga_Intercept, c(.05, .95))[2])
+
+program_beh_cog <- mood %>% 
+    spread_draws(cor_program_ID__behenga_Intercept__cogenga_Intercept) %>% 
+    mutate(est = cor_program_ID__behenga_Intercept__cogenga_Intercept ^ 2) %>% 
+    mutate(var = "program_beh_cog") %>% 
+    summarize(var = "program_beh_cog",
+              est = mean(est),
+              lower_95_ci = quantile(cor_program_ID__behenga_Intercept__cogenga_Intercept, c(.05, .95))[1],
+              upper_95_ci = quantile(cor_program_ID__behenga_Intercept__cogenga_Intercept, c(.05, .95))[2])
+```
+
+
+# Overall
+
+```{r}
+aff_beh <- mood %>% 
+    spread_draws(rescor__affenga__behenga) %>% 
+    mutate(est = rescor__affenga__behenga ^ 2) %>% 
+    mutate(var = "aff_beh") %>% 
+    summarize(var = "aff_beh",
+              est = mean(est),
+              lower_95_ci = quantile(rescor__affenga__behenga, c(.05, .95))[1],
+              upper_95_ci = quantile(rescor__affenga__behenga, c(.05, .95))[2])
+
+aff_cog <- mood %>% 
+    spread_draws(rescor__affenga__cogenga) %>% 
+    mutate(est = rescor__affenga__cogenga ^ 2) %>% 
+    mutate(var = "aff_cog") %>% 
+    summarize(var = "aff_cog",
+              est = mean(est),
+              lower_95_ci = quantile(rescor__affenga__cogenga, c(.05, .95))[1],
+              upper_95_ci = quantile(rescor__affenga__cogenga, c(.05, .95))[2])
+
+beh_cog <- mood %>% 
+    spread_draws(rescor__behenga__cogenga) %>% 
+    mutate(est = rescor__behenga__cogenga ^ 2) %>% 
+    mutate(var = "beh_cog") %>% 
+    summarize(var = "beh_cog",
+              est = mean(est),
+              lower_95_ci = quantile(rescor__behenga__cogenga, c(.05, .95))[1],
+              upper_95_ci = quantile(rescor__behenga__cogenga, c(.05, .95))[2])
+```
+
+```{r}
+bind_rows(beep_aff_beh, beep_aff_cog, beep_beh_cog,
+participant_aff_beh, participant_aff_cog, participant_beh_cog,
+program_aff_beh, program_aff_cog, program_beh_cog,
+aff_beh, aff_cog, beh_cog) %>% 
+    mutate_if(is.numeric, sqrt) %>% 
+    mutate_if(is.numeric, round, 3) %>% 
+    mutate(est_ci = str_c(est, " [", lower_95_ci, ", ", upper_95_ci, "]")) %>% 
+    select(var, est_ci) %>% 
+    clipr::write_clip()
+```
+
+
+# intercepts
+
+```{r}
+aff_imus <- mood %>% 
+    spread_draws(b_affenga_datasetimuscle) %>% 
+    select(-.chain) %>% 
+    summarize(var = "aff_imus",
+              est = mean(b_affenga_datasetimuscle),
+              lower_95_ci = quantile(b_affenga_datasetimuscle, c(.05, .95))[1],
+              upper_95_ci = quantile(b_affenga_datasetimuscle, c(.05, .95))[2])
+
+beh_imus <- mood %>% 
+    spread_draws(b_behenga_datasetimuscle) %>% 
+    select(-.chain) %>% 
+    summarize(var = "beh_imus",
+              est = mean(b_behenga_datasetimuscle),
+              lower_95_ci = quantile(b_behenga_datasetimuscle, c(.05, .95))[1],
+              upper_95_ci = quantile(b_behenga_datasetimuscle, c(.05, .95))[2])
+
+cog_imus <- mood %>% 
+    spread_draws(b_cogenga_datasetimuscle) %>% 
+    select(-.chain) %>% 
+    summarize(var = "cog_imus",
+              est = mean(b_cogenga_datasetimuscle),
+              lower_95_ci = quantile(b_cogenga_datasetimuscle, c(.05, .95))[1],
+              upper_95_ci = quantile(b_cogenga_datasetimuscle, c(.05, .95))[2])
+
+
+aff_scimo<- mood %>% 
+    spread_draws(b_affenga_datasetscimo) %>% 
+    select(-.chain) %>% 
+    summarize(var = "aff_imus",
+              est = mean(b_affenga_datasetscimo),
+              lower_95_ci = quantile(b_affenga_datasetscimo, c(.05, .95))[1],
+              upper_95_ci = quantile(b_affenga_datasetscimo, c(.05, .95))[2])
+
+beh_scimo<- mood %>% 
+    spread_draws(b_behenga_datasetscimo) %>% 
+    select(-.chain) %>% 
+    summarize(var = "beh_imus",
+              est = mean(b_behenga_datasetscimo),
+              lower_95_ci = quantile(b_behenga_datasetscimo, c(.05, .95))[1],
+              upper_95_ci = quantile(b_behenga_datasetscimo, c(.05, .95))[2])
+
+cog_scimo<- mood %>% 
+    spread_draws(b_cogenga_datasetscimo) %>% 
+    select(-.chain) %>% 
+    summarize(var = "cog_imus",
+              est = mean(b_cogenga_datasetscimo),
+              lower_95_ci = quantile(b_cogenga_datasetscimo, c(.05, .95))[1],
+              upper_95_ci = quantile(b_cogenga_datasetscimo, c(.05, .95))[2])
+
+
+aff_stemie<- mood %>% 
+    spread_draws(b_affenga_datasetstemie) %>% 
+    select(-.chain) %>% 
+    summarize(var = "aff_imus",
+              est = mean(b_affenga_datasetstemie),
+              lower_95_ci = quantile(b_affenga_datasetstemie, c(.05, .95))[1],
+              upper_95_ci = quantile(b_affenga_datasetstemie, c(.05, .95))[2])
+
+beh_stemie<- mood %>% 
+    spread_draws(b_behenga_datasetstemie) %>% 
+    select(-.chain) %>% 
+    summarize(var = "beh_imus",
+              est = mean(b_behenga_datasetstemie),
+              lower_95_ci = quantile(b_behenga_datasetstemie, c(.05, .95))[1],
+              upper_95_ci = quantile(b_behenga_datasetstemie, c(.05, .95))[2])
+
+cog_stemie<- mood %>% 
+    spread_draws(b_cogenga_datasetstemie) %>% 
+    select(-.chain) %>% 
+    summarize(var = "cog_imus",
+              est = mean(b_cogenga_datasetstemie),
+              lower_95_ci = quantile(b_cogenga_datasetstemie, c(.05, .95))[1],
+              upper_95_ci = quantile(b_cogenga_datasetstemie, c(.05, .95))[2])
+
+bind_rows(aff_imus, beh_imus, cog_imus,
+          aff_scimo, beh_scimo, cog_scimo,
+          aff_stemie, beh_stemie, cog_stemie) %>% 
+    mutate_if(is.numeric, round, 3) %>% 
+    mutate(est_ci = str_c(est, " [", lower_95_ci, ", ", upper_95_ci, "]")) %>% 
+    select(var, est_ci) %>% 
+    clipr::write_clip()
+```
+
