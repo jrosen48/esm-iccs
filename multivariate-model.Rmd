@@ -36,7 +36,7 @@ d3 <- d3 %>%
 # Overall
 
 d1s <- d1 %>% dplyr::mutate(participant_ID = STUDID,
-                     program_ID = str_c(d1$TEACHID, " - ", d1$PERIOD)) %>%
+                            program_ID = str_c(d1$TEACHID, " - ", d1$PERIOD)) %>%
     select(participant_ID,
            beep_ID,
            program_ID,
@@ -87,11 +87,11 @@ dd
 
 ```{r, eval = FALSE}
 mood <- brm(mvbind(aff_enga, beh_enga, cog_enga) ~ -1 +
-               (1| a | participant_ID) + (1| b | beep_ID) + (1| c | program_ID) +
+                (1| a | participant_ID) + (1| b | beep_ID) + (1| c | program_ID) +
                 dataset,
-           data = dd,
-           iter = 2000, chains = 4,
-           cores = 3)
+            data = dd,
+            iter = 4000, chains = 4,
+            cores = 4)
 
 write_rds(mood, "final-model.rds")
 ```
@@ -105,6 +105,8 @@ mood
 # Summary table
 
 ```{r}
+# mood <- `final-model`
+
 d1 <- summary(mood)$fixed
 d2 <- summary(mood)$random
 d2a <- d2$beep_ID
@@ -119,7 +121,7 @@ d <- rbind(d1, d2a, d2b, d2c, d3, d4) %>%
     as_tibble() %>% 
     select(Var, Estimate, Est_Error = Est.Error, Lower_CI = `l-95% CI`, Upper_CI = `u-95% CI`)
 
-d %>% 
+t <- d %>% 
     mutate(category = c(rep("Response-Dataset Intercept", 9),
                         rep("Situation Var", 3),
                         rep("Individual Var", 3),
@@ -128,118 +130,99 @@ d %>%
                         rep("Residual", 3),
                         rep("Residual Corr.", 3))) %>% 
     group_by(category) %>% 
-    gt() %>% 
+    gt::gt() %>% 
     gt::fmt_number(columns = vars(Estimate, Est_Error, Lower_CI, Upper_CI)) %>% 
-    gt::tab_row_group() %>% 
+    gt::tab_row_group()
+
+t
+
+t %>% 
+    fmt_number(vars(Estimate, Est_Error, Lower_CI, Upper_CI)) %>% 
     gt::gtsave("esm-icc-estimates.rtf")
 ```
 
 ```{r}
-# parnames(mood)[1:33]
-
-# var component within outcome
-
-## aff
-hypothesis(mood, 
-           c("sd_beep_ID__affenga_Intercept=sd_participant_ID__affenga_Intercept", 
-             "sd_participant_ID__affenga_Intercept=sd_program_ID__affenga_Intercept",
-             "sd_beep_ID__affenga_Intercept=sd_program_ID__affenga_Intercept"),
-           class = NULL)
-
-## beh
-hypothesis(mood, 
-           c("sd_beep_ID__behenga_Intercept=sd_participant_ID__behenga_Intercept", 
-             "sd_participant_ID__behenga_Intercept=sd_program_ID__behenga_Intercept",
-             "sd_beep_ID__behenga_Intercept=sd_program_ID__behenga_Intercept"),
-           class = NULL)
-
-## cog
-hypothesis(mood, 
-           c("sd_beep_ID__cogenga_Intercept=sd_participant_ID__cogenga_Intercept", 
-             "sd_participant_ID__cogenga_Intercept=sd_program_ID__cogenga_Intercept",
-             "sd_beep_ID__cogenga_Intercept=sd_program_ID__cogenga_Intercept"),
-           class = NULL)
 
 # var component by outcome
+re_p <- function(p) {
+    p <- ifelse(p > .999, "p < .001",
+                ifelse(p > .95, str_c("p = ", round(1-p, 3)),
+                       ifelse(p < .001, "p < .001",
+                              ifelse(p < .05, str_c("p = ", round(p, 3)), p))))
+    p
+}
 
-## situation
+## RQ2
 hypothesis(mood, 
-           c("sd_beep_ID__affenga_Intercept=sd_beep_ID__behenga_Intercept", 
-             "sd_beep_ID__behenga_Intercept=sd_beep_ID__cogenga_Intercept",
-             "sd_beep_ID__affenga_Intercept=sd_beep_ID__cogenga_Intercept"),
-           class = NULL)
+           c("sd_beep_ID__affenga_Intercept>sd_participant_ID__affenga_Intercept", 
+             "sd_participant_ID__affenga_Intercept>sd_program_ID__affenga_Intercept",
+             "sd_beep_ID__affenga_Intercept>sd_program_ID__affenga_Intercept",
+             "sd_beep_ID__behenga_Intercept>sd_participant_ID__behenga_Intercept", 
+             "sd_participant_ID__behenga_Intercept>sd_program_ID__behenga_Intercept",
+             "sd_beep_ID__behenga_Intercept>sd_program_ID__behenga_Intercept",
+             "sd_beep_ID__cogenga_Intercept>sd_participant_ID__cogenga_Intercept", 
+             "sd_participant_ID__cogenga_Intercept>sd_program_ID__cogenga_Intercept",
+             "sd_beep_ID__cogenga_Intercept>sd_program_ID__cogenga_Intercept"),
+           class = NULL) %>% 
+    pluck(1) %>% 
+    mutate(Estimate = str_c(round(abs(Estimate), 3), " (", round(Est.Error,3), "), ", re_p(Post.Prob))) %>% 
+    select(Estimate) %>% 
+    clipr::write_clip()
 
-## situation
+## RQ2
 hypothesis(mood, 
-           c("sd_participant_ID__affenga_Intercept=sd_participant_ID__behenga_Intercept", 
-             "sd_participant_ID__behenga_Intercept=sd_participant_ID__cogenga_Intercept",
-             "sd_participant_ID__affenga_Intercept=sd_participant_ID__cogenga_Intercept"),
-           class = NULL)
-
-## program
-hypothesis(mood, 
-           c("sd_program_ID__affenga_Intercept=sd_program_ID__behenga_Intercept", 
-             "sd_program_ID__behenga_Intercept=sd_program_ID__cogenga_Intercept",
-             "sd_program_ID__affenga_Intercept=sd_program_ID__cogenga_Intercept"),
-           class = NULL)
+           c("sd_beep_ID__affenga_Intercept>sd_beep_ID__behenga_Intercept", 
+             "sd_beep_ID__behenga_Intercept>sd_beep_ID__cogenga_Intercept",
+             "sd_beep_ID__affenga_Intercept>sd_beep_ID__cogenga_Intercept",
+             "sd_participant_ID__affenga_Intercept>sd_participant_ID__behenga_Intercept", 
+             "sd_participant_ID__behenga_Intercept>sd_participant_ID__cogenga_Intercept",
+             "sd_participant_ID__affenga_Intercept>sd_participant_ID__cogenga_Intercept",
+             "sd_program_ID__affenga_Intercept>sd_program_ID__behenga_Intercept", 
+             "sd_program_ID__behenga_Intercept>sd_program_ID__cogenga_Intercept",
+             "sd_program_ID__affenga_Intercept>sd_program_ID__cogenga_Intercept"),
+           class = NULL) %>% pluck(1) %>% 
+    mutate(Estimate = str_c(round(abs(Estimate), 3), " (", round(Est.Error,3), "), ", re_p(Post.Prob))) %>% 
+    select(Estimate) %>% 
+    clipr::write_clip()
 
 # Dataset
 
 hypothesis(mood, 
-           c("b_affenga_datasetstemie=b_affenga_datasetscimo", 
-             "b_affenga_datasetstemie=b_affenga_datasetimuscle",
-             "b_affenga_datasetscimo=b_affenga_datasetimuscle"),
-           class = NULL)
-
-hypothesis(mood, 
-           c("b_behenga_datasetstemie=b_behenga_datasetscimo", 
-             "b_behenga_datasetstemie=b_behenga_datasetimuscle",
-             "b_behenga_datasetscimo=b_behenga_datasetimuscle"),
-           class = NULL)
-
-hypothesis(mood, 
-           c("b_cogenga_datasetstemie=b_cogenga_datasetscimo", 
-             "b_cogenga_datasetstemie=b_cogenga_datasetimuscle",
-             "b_cogenga_datasetscimo=b_cogenga_datasetimuscle"),
-           class = NULL)
-
-# Not 0
-
-## aff
-hypothesis(mood, 
-           c("sd_beep_ID__affenga_Intercept>.02", 
-             "sd_participant_ID__affenga_Intercept>0.02",
-             "sd_program_ID__affenga_Intercept>0.02"),
-           class = NULL)
-
-## beh
-hypothesis(mood, 
-           c("sd_beep_ID__behenga_Intercept>.02", 
-             "sd_participant_ID__behenga_Intercept>0.02",
-             "sd_program_ID__behenga_Intercept>0.02"),
-           class = NULL)
-## cog
-hypothesis(mood, 
-           c("sd_beep_ID__cogenga_Intercept>.02", 
-             "sd_participant_ID__cogenga_Intercept>0.02",
-             "sd_program_ID__cogenga_Intercept>0.02"),
-           class = NULL)
+           c("b_affenga_datasetstemie>b_affenga_datasetscimo", 
+             "b_affenga_datasetstemie>b_affenga_datasetimuscle",
+             "b_affenga_datasetscimo>b_affenga_datasetimuscle",
+             "b_behenga_datasetstemie>b_behenga_datasetscimo", 
+             "b_behenga_datasetstemie>b_behenga_datasetimuscle",
+             "b_behenga_datasetscimo>b_behenga_datasetimuscle",
+             "b_cogenga_datasetstemie>b_cogenga_datasetscimo", 
+             "b_cogenga_datasetstemie>b_cogenga_datasetimuscle",
+             "b_cogenga_datasetscimo>b_cogenga_datasetimuscle"),
+           class = NULL) %>% 
+    pluck(1) %>% 
+    mutate(Estimate = str_c(round(abs(Estimate), 3), " (", round(Est.Error,3), "), ", re_p(Post.Prob))) %>% 
+    select(Estimate) %>% 
+    clipr::write_clip()
 
 ## res correlations
 
 ## at program level
 hypothesis(mood, 
-           c("cor_program_ID__affenga_Intercept__behenga_Intercept=cor_program_ID__affenga_Intercept__cogenga_Intercept", 
-             "cor_program_ID__behenga_Intercept__cogenga_Intercept=cor_program_ID__affenga_Intercept__cogenga_Intercept",
-             "cor_program_ID__affenga_Intercept__behenga_Intercept=cor_program_ID__behenga_Intercept__cogenga_Intercept"),
-           class = NULL)
-
-## at participant level
-hypothesis(mood, 
-           c("cor_participant_ID__affenga_Intercept__behenga_Intercept=cor_participant_ID__affenga_Intercept__cogenga_Intercept", 
-             "cor_participant_ID__behenga_Intercept__cogenga_Intercept=cor_participant_ID__affenga_Intercept__cogenga_Intercept",
-             "cor_participant_ID__affenga_Intercept__behenga_Intercept=cor_participant_ID__behenga_Intercept__cogenga_Intercept"),
-           class = NULL)
+           c("cor_program_ID__affenga_Intercept__behenga_Intercept>cor_program_ID__affenga_Intercept__cogenga_Intercept", 
+             "cor_program_ID__affenga_Intercept__behenga_Intercept>cor_program_ID__behenga_Intercept__cogenga_Intercept",
+             
+             "cor_participant_ID__affenga_Intercept__behenga_Intercept>cor_participant_ID__affenga_Intercept__cogenga_Intercept", 
+             "cor_participant_ID__affenga_Intercept__behenga_Intercept>cor_participant_ID__behenga_Intercept__cogenga_Intercept",
+             
+             "cor_beep_ID__affenga_Intercept__behenga_Intercept>cor_beep_ID__affenga_Intercept__cogenga_Intercept", 
+             "cor_beep_ID__affenga_Intercept__behenga_Intercept>cor_beep_ID__behenga_Intercept__cogenga_Intercept",
+             
+             "rescor__affenga__behenga>rescor__affenga__cogenga",
+             "rescor__affenga__behenga>rescor__behenga__cogenga"),
+           class = NULL) %>% 
+    pluck(1) %>% 
+    mutate(Estimate = str_c(round(abs(Estimate), 3), " (", round(Est.Error,3), "), ", re_p(Post.Prob))) %>% 
+    select(Estimate) %>% 
+    clipr::write_clip()
 
 ## aff and cog, at different levels
 hypothesis(mood, 
@@ -249,12 +232,25 @@ hypothesis(mood,
            class = NULL)
 ```
 
-# Plot
-
-```{r, eval = FALSE}
-sjstats::get_re_var(mood)
-
+# Plot 
 # AFF 
+
+```{r}
+
+x <- VarCorr(mood)
+
+xx <- rbind(x$beep_ID$sd, x$participant_ID$sd,x$program_ID$sd,x$residual__$sd) %>% 
+    as_tibble() %>% 
+    mutate(var = c(rep("beep", 3), rep("ind", 3), rep("prog", 3), rep("resid", 3)),
+           out = rep(c("aff", "beh", "cog"), 4))
+
+xx$Variance <- xx$Estimate ^ 2
+xx$Est.Error <- xx$Est.Error ^ 2
+
+tot_var <- xx %>% 
+    group_by(out) %>% 
+    summarize(total_var = sum(Variance))
+
 resid <- mood %>% 
     spread_draws(sigma_affenga) %>% 
     mutate(est = sigma_affenga ^ 2) %>% 
@@ -288,8 +284,11 @@ progs <- mood%>%
 dda <- bind_rows(beeps, peeps, progs, resid)
 gma <- dda %>% 
     group_by(var) %>% 
-    summarize(ICC_mean = mean(ICC)) %>% 
-    mutate(ICC = ICC_mean)
+    summarize(var_mean = mean(est),
+              se = sd(est),
+              lower_95_ci = quantile(est, c(.05, .95))[1],
+              upper_95_ci = quantile(est, c(.05, .95))[2],
+              ICC = mean(ICC))
 # BEH 
 resid <- mood %>% 
     spread_draws(sigma_behenga) %>% 
@@ -324,8 +323,11 @@ progs <- mood%>%
 ddb <- bind_rows(beeps, peeps, progs, resid)
 gmb <- ddb %>% 
     group_by(var) %>% 
-    summarize(ICC_mean = mean(ICC)) %>% 
-    mutate(ICC = ICC_mean)
+    summarize(var_mean = mean(est),
+              se = sd(est),
+              lower_95_ci = quantile(est, c(.05, .95))[1],
+              upper_95_ci = quantile(est, c(.05, .95))[2],
+              ICC = mean(ICC))
 # COG
 resid <- mood %>% 
     spread_draws(sigma_cogenga) %>% 
@@ -360,8 +362,11 @@ progs <- mood%>%
 ddc <- bind_rows(beeps, peeps, progs, resid)
 gmc <- ddc %>% 
     group_by(var) %>% 
-    summarize(ICC_mean = mean(ICC)) %>% 
-    mutate(ICC = ICC_mean)
+    summarize(var_mean = mean(est),
+              se = sd(est),
+              lower_95_ci = quantile(est, c(.05, .95))[1],
+              upper_95_ci = quantile(est, c(.05, .95))[2],
+              ICC = mean(ICC))
 
 dda <- dda %>% mutate(out = "affective")
 ddb <- ddb %>% mutate(out = "behavioral")
@@ -380,15 +385,31 @@ gmd <- gma %>%
     bind_rows(gmb) %>% 
     bind_rows(gmc)
 
-dddd <- dddd %>% mutate(outcome = tools::toTitleCase(out))
+dddd <- dddd %>% 
+    mutate(outcome = tools::toTitleCase(out)) %>% 
+    filter(var!="residual")
+
 gmd <- gmd %>% mutate(outcome = tools::toTitleCase(out),
                       var = tools::toTitleCase(var)) %>% 
-    filter(var!="residual")
+    filter(var!="Residual")
+
+gmd %>% 
+    mutate_if(is.numeric, round, 3) %>% 
+    mutate(var_mean_se = str_c(var_mean, " (", se, ")"), 
+           ci = str_c("[", lower_95_ci, ", ", upper_95_ci, "]")) %>% 
+    select(var, outcome, var_mean_se, ci, ICC) %>% 
+    clipr::write_clip()
+
+ll <- gmd %>% group_by(outcome) %>% summarize(sum_ICC = sum(ICC))
+
+# gmd %>% 
+#     left_join(ll) %>% 
+#     mutate(outcome = str_c(outcome, " R^2 =", ))
 
 p <- dddd %>% 
     mutate(outcome = tools::toTitleCase(out),
            var = tools::toTitleCase(var)) %>%
-    filter(var != "Residual") %>% 
+    #filter(var != "Residual") %>% 
     ggplot(aes(x = ICC, fill = var)) + 
     geom_density(alpha = .5) +
     facet_grid(rows = vars(outcome)) +
@@ -400,16 +421,18 @@ p <- dddd %>%
         data = gmd)
 
 p + 
-    # geom_density(aes(x = ICC), data = alldo) +
     theme_bw() +
-    scale_fill_manual(values = c( '#fb8072', '#8dd3c7','#ffffb3')) +
-    scale_color_manual(values = c('#fb8072', '#8dd3c7', '#ffffb3')) +
+    # scale_fill_manual(values = c( '#fb8072', '#8dd3c7','#ffffb3')) +
+    # scale_color_manual(values = c('#fb8072', '#8dd3c7', '#ffffb3')) +
+    scale_fill_brewer(type = "qual", palette = "Set2") +
+    scale_color_brewer(type = "qual", palette = "Set2") +
     ylab(NULL) +
     xlab("Intra-class Correlation") +
     theme(legend.position = "none") +
     theme(axis.title.y=element_blank(),
           axis.text.y=element_blank(),
-          axis.ticks.y=element_blank())
+          axis.ticks.y=element_blank()) +
+    theme(text = element_text(size = 18, family = "Times"))
 
-ggsave("2019-06-17-esm-iccs.png", width = 9, height = 9)
+ggsave("2019-09-25-esm-iccs.png", width = 9, height = 9)
 ```
