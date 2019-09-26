@@ -83,6 +83,34 @@ dd <- dd %>%
 dd
 ```
 
+- Behavioral engagement was computed by taking the mean of student responses to the questions:
+    - “How hard were you working?”
+    - “How well were you concentrating?” 
+- Cognitive engagement was measured as the mean of students’ ratings on the questions:
+    - “How important was what you were doing do you?”
+    - “How important was it to your future?”
+- Affective engagement was computed as the mean of students’ ratings on the questions:
+    - “Was this activity interesting?”
+    - “Did you enjoy what you were doing?"
+
+```{r}
+# beh
+data.frame(d1$WRKHARD, d1$CONCEN)
+data.frame(d2$hardwk, d2$conc)
+data.frame(d3$hard_working, d3$concentrating)
+
+# cog
+data.frame(d1$IMPTYOU, d1$IMPTGOAL)
+data.frame(d2$imp_y, d2$imp_fut)
+data.frame(d3$important, d3$future_goals)
+
+# aff
+data.frame(d1$INTEREST, d1$ENJOY)
+data.frame(d2$interest, d2$enjoy)
+
+d2$enjoy1
+```
+
 # Desc
 
 ```{r}
